@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(gh repo view:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(pip install:*)",
+      "Bash(pip show:*)",
+      "Bash(findstr:*)",
+      "Bash(cmd /c \"taskkill /PID 704 /F\")",
+      "Bash(cmd /c \"tasklist /FI \"\"PID eq 704\"\"\")"
+    ]
+  }
+}

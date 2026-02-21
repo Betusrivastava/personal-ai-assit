@@ -1,4 +1,3 @@
-from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 from typing import List
@@ -6,19 +5,14 @@ from typing import List
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, Depends, Header
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-
 import groq as _groq
+from fastapi import FastAPI, HTTPException, Depends, Header
+from pydantic import BaseModel
 
 from database import init_db
 from agent import run_agent
 from memory import get_history
 
-# ---------------------------------------------------------------------------
-# Optional static API key auth (set API_KEY env var to enable)
-# ---------------------------------------------------------------------------
 API_KEY = os.getenv("API_KEY")
 
 
@@ -27,9 +21,6 @@ def verify_api_key(x_api_key: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
-# ---------------------------------------------------------------------------
-# App lifecycle
-# ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -44,9 +35,6 @@ app = FastAPI(
 )
 
 
-# ---------------------------------------------------------------------------
-# Schemas
-# ---------------------------------------------------------------------------
 class ChatRequest(BaseModel):
     message: str
 
@@ -61,9 +49,6 @@ class HistoryItem(BaseModel):
     created_at: str
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -80,7 +65,7 @@ def chat(body: ChatRequest):
     except _groq.BadRequestError as e:
         raise HTTPException(status_code=502, detail=str(e))
     except _groq.APIConnectionError:
-        raise HTTPException(status_code=503, detail="Could not reach Groq API. Check your connection.")
+        raise HTTPException(status_code=503, detail="Could not reach Groq API.")
     return ChatResponse(response=reply)
 
 
@@ -101,4 +86,4 @@ def clear_history():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8081)
