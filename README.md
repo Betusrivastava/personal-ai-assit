@@ -1,6 +1,46 @@
 # Personal Focus Assistant
 
-A lightweight AI agent that helps you stay on top of your priorities through natural conversation. It remembers what you've shared across sessions and surfaces patterns, blockers, and focus suggestions based on your actual history — not generic advice.
+An AI agent that helps you stay on top of your priorities through natural conversation. Built with **LangChain + Groq** for agent reasoning, **ChromaDB** for semantic memory, and **SQLite** for ordered history — it remembers what you've shared across sessions and surfaces patterns, blockers, and focus suggestions based on your actual history.
+
+---
+
+## Architecture
+
+```
+User message
+    │
+    ├─ LangChain AgentExecutor receives input
+    │
+    ├─ Agent REASONS about what to do:
+    │   ├─ Call save_priority tool   → persist goals to DB + ChromaDB
+    │   └─ Call get_priorities tool  → semantic search past context
+    │
+    ├─ ChromaDB returns top-3 relevant past conversations
+    │
+    ├─ Agent generates response grounded in real context
+    │
+    ├─ Conversation saved to SQLite + embedded in ChromaDB
+    │
+    └─ Every 20 turns: auto-summarise into priority snapshot
+```
+
+### Key Components
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Agent Framework | LangChain `AgentExecutor` + `create_tool_calling_agent` | Reasoning loop — agent decides when to save/retrieve |
+| LLM | Groq (Llama 3.1 8B Instant) | Fast inference via Groq API |
+| Semantic Memory | ChromaDB (all-MiniLM-L6-v2 embeddings) | Vector search over past conversations & priorities |
+| Ordered History | SQLite | Timestamped conversation log, settings, priorities |
+| API | FastAPI | REST endpoints for chat, history, priorities |
+| Frontend | Streamlit | Chat UI with dark/light theme, streaming |
+
+### Agent Tools
+
+| Tool | Description |
+|------|-------------|
+| `save_priority(text)` | Saves a user priority/goal to SQLite + ChromaDB for future recall |
+| `get_priorities(query)` | Semantic search across all past conversations, priorities, and summaries |
 
 ---
 
@@ -14,10 +54,13 @@ cd personal-ai-assit
 pip install -r requirements.txt
 ```
 
+> **Note:** On first run, ChromaDB will download the embedding model (~80MB). This is a one-time setup.
+
 ### 2. Configure environment
 
 ```bash
 cp .env.example .env
+# Edit .env and add your GROQ_API_KEY
 ```
 
 ### 3. Run
@@ -27,17 +70,18 @@ streamlit run app.py
 ```
 
 App is now live at `http://localhost:8080`
+
 ---
 
 ## File Structure
 
 ```
 personal-ai-assistant/
-├── app.py           # Streamlit frontend — chat UI
-├── main.py          # FastAPI app — REST endpoints (optional)
-├── agent.py         # Agent core — system prompt + Groq call
-├── memory.py        # Memory layer — SQLite read/write/format
-├── database.py      # DB schema init
+├── app.py           # Streamlit frontend — chat UI with streaming
+├── main.py          # FastAPI app — REST endpoints
+├── agent.py         # LangChain AgentExecutor + tools (save_priority, get_priorities)
+├── memory.py        # Dual memory layer — SQLite + ChromaDB semantic retrieval
+├── database.py      # DB schema, migrations, CRUD helpers
 ├── requirements.txt
 ├── .env.example
 └── .gitignore
@@ -45,7 +89,7 @@ personal-ai-assistant/
 
 ---
 
-## API (Optional)
+## API
 
 To test via Postman or curl, run the FastAPI backend separately:
 
@@ -57,7 +101,7 @@ python main.py
 
 ### POST /chat
 
-Send a message; get a context-aware response.
+Send a message; the agent reasons, uses tools if needed, and returns a context-aware response.
 
 ```bash
 curl -X POST http://localhost:8081/chat \
@@ -88,13 +132,21 @@ Response:
 
 ### GET /history
 
-Inspect stored conversation history.
-
 ```bash
 curl http://localhost:8081/history?limit=5
 ```
 
+### GET /priorities
+
+Retrieve all saved priorities.
+
+```bash
+curl http://localhost:8081/priorities
+```
+
 ### DELETE /history
+
+Clears both SQLite history and ChromaDB embeddings.
 
 ```bash
 curl -X DELETE http://localhost:8081/history
@@ -108,34 +160,15 @@ curl http://localhost:8081/health
 
 ---
 
-## How the Agent Works
+## Memory System
 
-```
-User types in Streamlit chat
-    │
-    ├─ Fetch last 10 turns from SQLite
-    │
-    ├─ Format history as context block
-    │
-    ├─ Inject into system prompt
-    │
-    ├─ Call Llama 3.1 via Groq API
-    │
-    ├─ Save reply to SQLite
-    │
-    └─ Show reply in chat bubble
-```
+The assistant uses a **dual memory architecture**:
 
----
+1. **SQLite** — Ordered conversation history with timestamps. Provides the last 10 turns as recent context.
+2. **ChromaDB** — Semantic vector store. Every conversation turn and priority is embedded. On each new message, the top-3 semantically similar past entries are retrieved and injected into the prompt.
+3. **Auto-summarisation** — Every 20 turns, the LLM generates a priority snapshot summarising recurring themes, goals, and blockers. This summary persists and is injected at the top of the context window.
 
-## Known Limitations
-
-| Limitation | Improvement |
-|---|---|
-| Single user — no session isolation | Add `session_id` to DB schema |
-| Last-N turns only | Add ChromaDB for semantic search |
-| No streaming | Use Groq streaming + `st.write_stream` |
-| History grows unbounded | Add a cleanup/archive job |
+This means the agent can recall a priority mentioned 50 conversations ago if it's semantically relevant to the current message — not just the last 10 turns.
 
 ---
 
@@ -146,3 +179,6 @@ User types in Streamlit chat
 | `GROQ_API_KEY` | Yes | — | Free at console.groq.com |
 | `API_KEY` | No | — | FastAPI auth key (leave blank to disable) |
 | `DB_PATH` | No | `focus_assistant.db` | SQLite file path |
+| `CHROMA_DIR` | No | `./chroma_db` | ChromaDB persistent storage directory |
+| `MODEL_NAME` | No | `llama-3.1-8b-instant` | Groq model to use |
+| `MAX_TOKENS` | No | `512` | Max tokens per LLM response |

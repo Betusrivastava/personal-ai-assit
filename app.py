@@ -3,7 +3,7 @@ load_dotenv()
 
 import streamlit as st
 from database import init_db, get_connection, get_setting, set_setting
-from memory import get_history
+from memory import get_history, clear_memory
 from agent import stream_agent
 
 st.set_page_config(
@@ -396,9 +396,7 @@ with st.sidebar:
     st.markdown("")
 
     if st.button("🗑️ Clear History", use_container_width=True, type="secondary"):
-        with get_connection() as conn:
-            conn.execute("DELETE FROM conversations")
-            conn.commit()
+        clear_memory()
         st.session_state.messages = []
         st.success("Cleared!")
         st.rerun()

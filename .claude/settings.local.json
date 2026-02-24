@@ -8,7 +8,8 @@
       "Bash(pip show:*)",
       "Bash(findstr:*)",
       "Bash(cmd /c \"taskkill /PID 704 /F\")",
-      "Bash(cmd /c \"tasklist /FI \"\"PID eq 704\"\"\")"
+      "Bash(cmd /c \"tasklist /FI \"\"PID eq 704\"\"\")",
+      "Bash(git -C \"c:/Users/prach/personal-ai-assistant\" log --oneline -10)"
     ]
   }
 }

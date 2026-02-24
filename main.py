@@ -5,13 +5,12 @@ from typing import List
 from dotenv import load_dotenv
 load_dotenv()
 
-import groq as _groq
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 
-from database import init_db
+from database import init_db, get_all_priorities
 from agent import run_agent
-from memory import get_history
+from memory import get_history, clear_memory
 
 API_KEY = os.getenv("API_KEY")
 
@@ -30,7 +29,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Personal Focus Assistant",
     description="An AI agent that remembers your priorities across sessions.",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -60,12 +59,13 @@ def chat(body: ChatRequest):
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     try:
         reply = run_agent(body.message.strip())
-    except _groq.AuthenticationError:
-        raise HTTPException(status_code=502, detail="Invalid Groq API key.")
-    except _groq.BadRequestError as e:
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "authentication" in error_msg or "api key" in error_msg:
+            raise HTTPException(status_code=502, detail="Invalid Groq API key.")
+        if "connection" in error_msg:
+            raise HTTPException(status_code=503, detail="Could not reach Groq API.")
         raise HTTPException(status_code=502, detail=str(e))
-    except _groq.APIConnectionError:
-        raise HTTPException(status_code=503, detail="Could not reach Groq API.")
     return ChatResponse(response=reply)
 
 
@@ -76,12 +76,14 @@ def history(limit: int = 10):
 
 
 @app.delete("/history", dependencies=[Depends(verify_api_key)])
-def clear_history():
-    from database import get_connection
-    with get_connection() as conn:
-        conn.execute("DELETE FROM conversations")
-        conn.commit()
+def delete_history():
+    clear_memory()
     return {"message": "Conversation history cleared."}
+
+
+@app.get("/priorities", dependencies=[Depends(verify_api_key)])
+def priorities():
+    return get_all_priorities()
 
 
 if __name__ == "__main__":
