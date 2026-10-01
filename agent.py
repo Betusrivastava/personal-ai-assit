@@ -17,7 +17,7 @@ load_dotenv()
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
 from langchain_core.prompts import PromptTemplate
-from langchain.agents import AgentExecutor, create_react_agent
+from langchain_classic.agents import AgentExecutor, create_react_agent
 
 from database import (
     get_setting,
